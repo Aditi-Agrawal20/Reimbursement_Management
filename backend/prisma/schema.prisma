@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id             String   @id @default(uuid())
+  name           String
+  country        String
+  currency       String   @default("INR")
+  setup_complete Boolean  @default(true)
+  created_at     DateTime @default(now())
+
+  users          User[]
+  approval_rules ApprovalRule[]
+}
+
+model User {
+  id                   String   @id @default(uuid())
+  full_name            String
+  email                String   @unique
+  password_hash        String
+  role                 String   @default("employee") // admin, manager, employee, finance, director
+  company_id           String
+  manager_id           String?
+  department           String?
+  must_change_password Boolean  @default(false)
+  created_at           DateTime @default(now())
+
+  company        Company        @relation(fields: [company_id], references: [id])
+  manager        User?          @relation("ManagerReports", fields: [manager_id], references: [id])
+  reports        User[]         @relation("ManagerReports")
+  expenses       Expense[]      @relation("EmployeeExpenses")
+  approval_steps ApprovalStep[] @relation("ApproverSteps")
+}
+
+model Expense {
+  id               String   @id @default(uuid())
+  employee_id      String
+  amount           Float
+  currency         String   @default("INR")
+  converted_amount Float
+  category         String
+  vendor           String?
+  description      String
+  date             String
+  receipt_url      String?
+  status           String   @default("pending") // pending, approved, rejected
+  created_at       DateTime @default(now())
+
+  employee       User           @relation("EmployeeExpenses", fields: [employee_id], references: [id])
+  approval_steps ApprovalStep[]
+}
+
+model ApprovalRule {
+  id          String   @id @default(uuid())
+  company_id  String
+  name        String
+  description String?
+  type        String   @default("sequential") // sequential, percentage, specific
+  config      String   @default("{}") // JSON string
+  created_at  DateTime @default(now())
+
+  company Company @relation(fields: [company_id], references: [id])
+}
+
+model ApprovalStep {
+  id          String   @id @default(uuid())
+  expense_id  String
+  approver_id String
+  step_order  Int
+  status      String   @default("pending") // pending, approved, rejected
+  comment     String?
+  timestamp   DateTime @default(now())
+
+  expense  Expense @relation(fields: [expense_id], references: [id])
+  approver User    @relation("ApproverSteps", fields: [approver_id], references: [id])
+}

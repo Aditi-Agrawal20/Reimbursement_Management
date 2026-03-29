@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reimbursement OCR — Receipt Scanner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface-hover: #222240;
+            --border: #2a2a4a;
+            --accent: #6c63ff;
+            --accent-glow: rgba(108, 99, 255, 0.35);
+            --accent-light: #8b83ff;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --text: #eaeaea;
+            --text-muted: #8888aa;
+            --radius: 16px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ── Header ─────────────────────────────────────────── */
+        header {
+            width: 100%;
+            padding: 24px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background: rgba(15, 15, 26, 0.85);
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .logo span {
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem;
+            -webkit-text-fill-color: white;
+        }
+        #quota-badge {
+            font-size: 0.75rem;
+            padding: 6px 14px;
+            border-radius: 20px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        #quota-badge:hover { border-color: var(--accent); color: var(--text); }
+
+        /* ── Main layout ────────────────────────────────────── */
+        main {
+            width: 100%;
+            max-width: 960px;
+            padding: 40px 24px 80px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+        }
+        @media (max-width: 700px) {
+            main { grid-template-columns: 1fr; }
+        }
+
+        /* ── Cards ──────────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            transition: border-color 0.3s;
+        }
+        .card:hover { border-color: var(--accent); }
+        .card h2 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ── Upload zone ────────────────────────────────────── */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(108, 99, 255, 0.06);
+        }
+        .drop-zone.drag-over::after {
+            content: 'Drop it!';
+            position: absolute;
+            inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(108, 99, 255, 0.12);
+            font-weight: 600;
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+        .drop-zone p { color: var(--text-muted); margin-top: 8px; font-size: 0.9rem; }
+        .drop-icon { font-size: 2.4rem; margin-bottom: 8px; }
+        #file-input { display: none; }
+
+        /* ── Preview ────────────────────────────────────────── */
+        #preview-area {
+            margin-top: 16px;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        #preview-area img {
+            max-width: 100%;
+            max-height: 220px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+        #file-name {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            word-break: break-all;
+        }
+
+        /* ── Buttons ────────────────────────────────────────── */
+        .btn {
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            color: #fff;
+            box-shadow: 0 4px 24px var(--accent-glow);
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+        .btn-primary:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ── Spinner ────────────────────────────────────────── */
+        .spinner { display: none; margin-top: 20px; text-align: center; }
+        .spinner.active { display: block; }
+        .spinner .dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin: 0 4px;
+            animation: bounce 1.2s infinite ease-in-out;
+        }
+        .spinner .dot:nth-child(2) { animation-delay: 0.15s; }
+        .spinner .dot:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        .spinner p { margin-top: 10px; font-size: 0.85rem; color: var(--text-muted); }
+
+        /* ── Result table ───────────────────────────────────── */
+        #result-card { display: none; }
+        .result-table { width: 100%; border-spacing: 0; }
+        .result-table td {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        .result-table td:first-child {
+            color: var(--text-muted);
+            width: 120px;
+            font-weight: 500;
+        }
+        .result-table tr:last-child td { border-bottom: none; }
+        .result-value { font-weight: 600; }
+
+        /* ── Alerts ─────────────────────────────────────────── */
+        .alert {
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            display: none;
+        }
+        .alert-warning {
+            background: rgba(243, 156, 18, 0.1);
+            border: 1px solid rgba(243, 156, 18, 0.3);
+            color: var(--warning);
+        }
+        .alert-error {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: var(--danger);
+        }
+        .alert-success {
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            color: var(--success);
+        }
+
+        /* ── Quota bar in result ────────────────────────────── */
+        .quota-mini { margin-top: 16px; }
+        .quota-mini p { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px; }
+        .quota-bar {
+            width: 100%; height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .quota-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            transition: width 0.6s ease;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<header>
+    <div class="logo">
+        <div class="logo-icon">🧾</div>
+        <span>ReceiptAI</span>
+    </div>
+    <div id="quota-badge" title="Click to refresh quota">⏳ Loading quota…</div>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────────────── -->
+<main>
+    <!-- LEFT: Upload card -->
+    <div class="card">
+        <h2>📤 Upload Receipt</h2>
+
+        <div class="drop-zone" id="drop-zone">
+            <div class="drop-icon">🖼️</div>
+            <strong>Drag &amp; drop your receipt here</strong>
+            <p>or click to browse — JPG, PNG, GIF, WebP</p>
+        </div>
+        <input type="file" id="file-input" accept="image/png,image/jpeg,image/gif,image/webp">
+
+        <div id="preview-area">
+            <img id="preview-img" alt="Receipt preview">
+            <span id="file-name"></span>
+        </div>
+
+        <button class="btn btn-primary" id="scan-btn" disabled>🔍 Scan Receipt</button>
+
+        <div class="spinner" id="spinner">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            <p>Gemini AI is analyzing your receipt…</p>
+        </div>
+
+        <div class="alert alert-error" id="error-alert"></div>
+    </div>
+
+    <!-- RIGHT: Results card -->
+    <div class="card" id="result-card">
+        <h2>📋 Extracted Data</h2>
+
+        <div class="alert alert-warning" id="warning-alert"></div>
+        <div class="alert alert-success" id="success-alert">✅ Receipt scanned successfully!</div>
+
+        <table class="result-table">
+            <tr><td>Amount</td><td class="result-value" id="r-amount">—</td></tr>
+            <tr><td>Currency</td><td class="result-value" id="r-currency">—</td></tr>
+            <tr><td>Date</td><td class="result-value" id="r-date">—</td></tr>
+            <tr><td>Vendor</td><td class="result-value" id="r-vendor">—</td></tr>
+            <tr><td>Category</td><td class="result-value" id="r-category">—</td></tr>
+            <tr><td>Description</td><td class="result-value" id="r-description">—</td></tr>
+        </table>
+
+        <div class="quota-mini" id="quota-section">
+            <p>API Quota: <span id="quota-text">—</span></p>
+            <div class="quota-bar"><div class="quota-bar-fill" id="quota-fill" style="width:0"></div></div>
+        </div>
+    </div>
+</main>
+
+<script>
+const API = '';  // same origin
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const previewArea = document.getElementById('preview-area');
+const previewImg = document.getElementById('preview-img');
+const fileNameEl = document.getElementById('file-name');
+const scanBtn = document.getElementById('scan-btn');
+const spinner = document.getElementById('spinner');
+const resultCard = document.getElementById('result-card');
+const errorAlert = document.getElementById('error-alert');
+const warningAlert = document.getElementById('warning-alert');
+const successAlert = document.getElementById('success-alert');
+const quotaBadge = document.getElementById('quota-badge');
+
+let selectedFile = null;
+
+// ── Drag & drop ──────────────────────────────────────────────────
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+    const allowed = ['image/png','image/jpeg','image/gif','image/webp'];
+    if (!allowed.includes(file.type)) {
+        showError('Unsupported file type. Please use JPG, PNG, GIF, or WebP.');
+        return;
+    }
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = e => {
+        previewImg.src = e.target.result;
+        fileNameEl.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+        previewArea.style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+    scanBtn.disabled = false;
+    hideAlerts();
+}
+
+// ── Scan button ──────────────────────────────────────────────────
+scanBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    scanBtn.disabled = true;
+    spinner.classList.add('active');
+    hideAlerts();
+    resultCard.style.display = 'none';
+
+    const form = new FormData();
+    form.append('receipt', selectedFile);
+
+    try {
+        const res = await fetch(API + '/api/ocr-receipt', { method: 'POST', body: form });
+        const json = await res.json();
+
+        if (!res.ok) {
+            showError(json.detail || 'Server error — see console.');
+            return;
+        }
+
+        // Fill result table
+        const d = json.data || {};
+        document.getElementById('r-amount').textContent = d.amount || '—';
+        document.getElementById('r-currency').textContent = d.currency || '—';
+        document.getElementById('r-date').textContent = d.date || '—';
+        document.getElementById('r-vendor').textContent = d.vendor || '—';
+        document.getElementById('r-category').textContent = d.category || '—';
+        document.getElementById('r-description').textContent = d.description || '—';
+
+        // Quota
+        if (json.quota) {
+            const q = json.quota;
+            const pct = ((q.requests_today / q.requests_limit) * 100).toFixed(1);
+            document.getElementById('quota-text').textContent =
+                q.requests_today + ' / ' + q.requests_limit + ' requests (' + pct + '%)';
+            document.getElementById('quota-fill').style.width = pct + '%';
+            quotaBadge.textContent = '📊 ' + q.requests_remaining + ' requests left';
+        }
+
+        // Warning / success
+        if (json.warning) {
+            warningAlert.textContent = '⚠️ ' + json.warning;
+            warningAlert.style.display = 'block';
+            successAlert.style.display = 'none';
+        } else {
+            successAlert.style.display = 'block';
+            warningAlert.style.display = 'none';
+        }
+
+        resultCard.style.display = 'block';
+    } catch (err) {
+        showError('Network error: ' + err.message);
+    } finally {
+        spinner.classList.remove('active');
+        scanBtn.disabled = false;
+    }
+});
+
+// ── Helpers ──────────────────────────────────────────────────────
+function showError(msg) {
+    errorAlert.textContent = '❌ ' + msg;
+    errorAlert.style.display = 'block';
+}
+function hideAlerts() {
+    errorAlert.style.display = 'none';
+    warningAlert.style.display = 'none';
+    successAlert.style.display = 'none';
+}
+
+// ── Fetch quota on load ─────────────────────────────────────────
+async function fetchQuota() {
+    try {
+        const res = await fetch(API + '/health');
+        const json = await res.json();
+        if (json.quota && json.quota.requests_remaining !== undefined) {
+            quotaBadge.textContent = '📊 ' + json.quota.requests_remaining + ' requests left';
+        } else {
+            quotaBadge.textContent = json.gemini_api === 'available' ? '✅ API Ready' : '⚠️ Quota exhausted';
+        }
+    } catch { quotaBadge.textContent = '❌ Server offline'; }
+}
+fetchQuota();
+quotaBadge.addEventListener('click', fetchQuota);
+</script>
+
+</body>
+</html>
